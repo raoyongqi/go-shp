@@ -36,7 +36,10 @@ func main() {
 		// 打印属性
 		for k, f := range fields {
 			val := file.ReadAttribute(n, k)
-			fmt.Printf("\t%v: %v\n", f, val)
+			if f.String() == "植被_4" {
+				fmt.Printf("\t%v: %v\n", f, val)
+			}
+
 		}
 
 		fmt.Println()
