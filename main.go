@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"strconv"
 
 	"github.com/jonas-p/go-shp"
 )
@@ -37,6 +38,7 @@ func main() {
 			val := file.ReadAttribute(n, k)
 			fmt.Printf("\t%v: %v\n", f, val)
 		}
+
 		fmt.Println()
 
 		// 增加计数器
@@ -47,5 +49,36 @@ func main() {
 			break
 		}
 	}
+	points := []shp.Point{
+		{X: 10.0, Y: 10.0},
+		{X: 10.0, Y: 15.0},
+		{X: 15.0, Y: 15.0},
+		{X: 15.0, Y: 10.0},
+	}
 
+	// fields to write
+	fields = []shp.Field{
+		// String attribute field with length 25
+		shp.StringField("NAME", 25),
+	}
+
+	// create and open a shapefile for writing points
+	shpFile, err := shp.Create("shp/points/points.shp", shp.POINT)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer shpFile.Close()
+
+	// setup fields for attributes
+	shpFile.SetFields(fields)
+
+	// write points and attributes
+	for n, point := range points {
+		shpFile.Write(&point)
+
+		// write attribute for object n for field 0 (NAME)
+		shpFile.WriteAttribute(n, 0, "Point "+strconv.Itoa(n+1))
+	}
+
+	log.Println("Shapefile created successfully")
 }
