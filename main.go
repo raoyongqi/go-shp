@@ -17,6 +17,35 @@ func main() {
 
 	// 获取文件的总记录数
 	fmt.Printf("总记录数: %d\n", file.AttributeCount())
+	// 获取文件的边界框
+	bbox := file.BBox()
+	fmt.Printf("边界框: Xmin: %f, Ymin: %f, Xmax: %f, Ymax: %f\n", bbox.MinX, bbox.MinY, bbox.MaxX, bbox.MaxY)
+	fields := file.Fields()
+	// 设置计数器，限制输出前 10 条记录
+	count := 0
+	maxRecords := 10
+	// loop through all features in the shapefile
+	for file.Next() {
+		// 获取当前几何形状和索引
+		n, p := file.Shape()
 
-	// 遍历每一个记录
+		// 打印几何形状的边界框
+		fmt.Println("边界框:", p.BBox())
+
+		// 打印属性
+		for k, f := range fields {
+			val := file.ReadAttribute(n, k)
+			fmt.Printf("\t%v: %v\n", f, val)
+		}
+		fmt.Println()
+
+		// 增加计数器
+		count++
+
+		// 如果已打印了 10 条记录，退出循环
+		if count >= maxRecords {
+			break
+		}
+	}
+
 }
