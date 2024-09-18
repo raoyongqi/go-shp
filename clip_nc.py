@@ -7,6 +7,7 @@ from rasterio.transform import from_origin
 from rasterio.enums import Resampling
 from rasterio.warp import calculate_default_transform, reproject
 import rasterio.mask
+import rioxarray  # 确保导入 rioxarray
 
 # 输入和输出目录
 input_nc_folder = 'climate/data/'
@@ -22,7 +23,13 @@ vector_data = vector_data.to_crs(epsg=4326)  # 确保矢量数据在正确的投
 
 # 裁剪 NetCDF 数据
 def crop_nc(ds, vector_data):
-    temp_raster_file = 'temp_raster.tif'
+    temp_raster_file = 'clipped/temp_raster.tif'
+    
+    # 确保数据带有 rioxarray 属性
+    ds.rio.set_spatial_dims(x_dim="lon", y_dim="lat", inplace=True)
+    ds.rio.write_crs("EPSG:4326", inplace=True)
+    
+    # 将数据保存为临时的 GeoTIFF 文件
     ds.rio.to_raster(temp_raster_file, driver='GTiff', transform='auto')
     
     with rasterio.open(temp_raster_file) as src:
@@ -37,36 +44,46 @@ def crop_nc(ds, vector_data):
             'transform': out_transform
         })
         
-        cropped_raster_file = 'cropped_raster.tif'
+        cropped_raster_file = 'clipped/cropped_raster.tif'
         with rasterio.open(cropped_raster_file, 'w', **out_meta) as dest:
             dest.write(out_image)
     
     os.remove(temp_raster_file)
     
-    cropped_ds = xr.open_rasterio(cropped_raster_file,engine='netcdf4')
+    # 使用 rioxarray 打开裁剪后的 GeoTIFF 文件
+    cropped_ds = rioxarray.open_rasterio(cropped_raster_file)
     return cropped_ds
 
 # 重采样到指定分辨率
 def resample_nc_to_tif(ds, resolution, output_tif_file):
     pixel_size = resolution / 60.0  # arc-minutes to degrees
+    
+    # 获取原始投影和边界信息
+    src_crs = ds.rio.crs
+    src_transform = ds.rio.transform()
+    width = ds.rio.width
+    height = ds.rio.height
+    
+    # 计算目标投影的转换
     transform, width, height = calculate_default_transform(
-        ds.crs, ds.crs, ds.dims['x'], ds.dims['y'], 
-        dx=pixel_size, dy=pixel_size, 
-        crs=ds.crs
+        src_crs, src_crs, width, height, 
+        *ds.rio.bounds(),  # 提供边界值
+        dst_width=int(width * (ds.rio.resolution()[0] / pixel_size)),
+        dst_height=int(height * (ds.rio.resolution()[1] / pixel_size))
     )
     
     with rasterio.open(output_tif_file, 'w', driver='GTiff', 
                        height=height, width=width, 
-                       count=ds.sizes['band'], dtype='float32',
-                       crs=ds.crs, transform=transform) as dst:
-        for i in range(ds.sizes['band']):
+                       count=ds.rio.count, dtype='float32',
+                       crs=src_crs, transform=transform) as dst:
+        for i in range(ds.rio.count):
             reproject(
-                source=xr.open_rasterio(ds)[i].values,
+                source=ds[i].values,
                 destination=rasterio.band(dst, i+1),
-                src_transform=ds.transform,
-                src_crs=ds.crs,
+                src_transform=src_transform,
+                src_crs=src_crs,
                 dst_transform=transform,
-                dst_crs=ds.crs,
+                dst_crs=src_crs,
                 resampling=Resampling.nearest
             )
 
@@ -85,20 +102,20 @@ for nc_file in nc_files:
         cropped_ds = crop_nc(ds[variable_name], vector_data)
         
         # 定义输出文件路径
-        base_name = os.path.basename(nc_file).replace('.nc', f'_{variable_name}_resampled.tif')
+        base_name = os.path.basename(nc_file).replace('.nc4', f'_{variable_name}_resampled.tif')
         output_tif_file = os.path.join(output_tif_folder, base_name)
         
         # 重采样数据并保存为 TIFF
         resample_nc_to_tif(cropped_ds, resolution=5, output_tif_file=output_tif_file)
         
         # 删除裁剪后的栅格文件
-        os.remove('cropped_raster.tif')
+        os.remove('clipped/cropped_raster.tif')
 
     # 关闭 NetCDF 数据集
     ds.close()
 
 # 删除所有临时文件（如果有）
-for temp_file in ['temp_raster.tif', 'cropped_raster.tif']:
+for temp_file in ['clipped/temp_raster.tif', 'clipped/cropped_raster.tif']:
     if os.path.exists(temp_file):
         os.remove(temp_file)
 
