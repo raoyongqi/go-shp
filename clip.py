@@ -3,7 +3,6 @@ import glob
 import rasterio
 from rasterio.mask import mask
 import geopandas as gpd
-from pyproj import Transformer
 
 # 输入和输出目录
 input_tif_folder = 'climate/wc2.1_5m'
