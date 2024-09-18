@@ -1,12 +1,24 @@
 package main
 
 import (
-	"fmt"
+	"io"
 	"log"
-	"strconv"
+	"strings"
 
 	"github.com/jonas-p/go-shp"
+	"golang.org/x/text/encoding/simplifiedchinese"
+	"golang.org/x/text/transform"
 )
+
+func decodeGBK(s string) (string, error) {
+	// Use io.ReadAll instead of ioutil.ReadAll
+	reader := transform.NewReader(strings.NewReader(s), simplifiedchinese.GBK.NewDecoder())
+	decoded, err := io.ReadAll(reader)
+	if err != nil {
+		return "", err
+	}
+	return string(decoded), nil
+}
 
 func main() {
 	// 打开 shapefile 文件
@@ -16,72 +28,56 @@ func main() {
 	}
 	defer file.Close()
 
-	// 获取文件的总记录数
-	fmt.Printf("总记录数: %d\n", file.AttributeCount())
-	// 获取文件的边界框
-	bbox := file.BBox()
-	fmt.Printf("边界框: Xmin: %f, Ymin: %f, Xmax: %f, Ymax: %f\n", bbox.MinX, bbox.MinY, bbox.MaxX, bbox.MaxY)
+	// 获取所有字段
 	fields := file.Fields()
-	// 设置计数器，限制输出前 10 条记录
-	count := 0
-	maxRecords := 10
-	// loop through all features in the shapefile
-	for file.Next() {
-		// 获取当前几何形状和索引
-		n, p := file.Shape()
 
-		// 打印几何形状的边界框
-		fmt.Println("边界框:", p.BBox())
-
-		// 打印属性
-		for k, f := range fields {
-			val := file.ReadAttribute(n, k)
-			if f.String() == "植被_4" {
-				fmt.Printf("\t%v: %v\n", f, val)
-			}
-
-		}
-
-		fmt.Println()
-
-		// 增加计数器
-		count++
-
-		// 如果已打印了 10 条记录，退出循环
-		if count >= maxRecords {
-			break
-		}
-	}
-	points := []shp.Point{
-		{X: 10.0, Y: 10.0},
-		{X: 10.0, Y: 15.0},
-		{X: 15.0, Y: 15.0},
-		{X: 15.0, Y: 10.0},
-	}
-
-	// fields to write
-	fields = []shp.Field{
-		// String attribute field with length 25
-		shp.StringField("NAME", 25),
-	}
-
-	// create and open a shapefile for writing points
-	shpFile, err := shp.Create("shp/points/points.shp", shp.POINT)
+	newShpFile, err := shp.Create("shp/new/filtered.shp", shp.POLYGON) // 假设是多边形
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer shpFile.Close()
+	defer newShpFile.Close()
 
-	// setup fields for attributes
-	shpFile.SetFields(fields)
+	// 创建对应的 DBF 文件，定义字段结构
+	newShpFile.SetFields(fields)
+	// 遍历每一个记录
 
-	// write points and attributes
-	for n, point := range points {
-		shpFile.Write(&point)
+	// 增加计数器
+	count := 0
 
-		// write attribute for object n for field 0 (NAME)
-		shpFile.WriteAttribute(n, 0, "Point "+strconv.Itoa(n+1))
+	for file.Next() {
+		n, shape := file.Shape()
+
+		// 假设你要处理的形状是多边形
+		p := shape.(*shp.Polygon)
+
+		for k := range fields {
+			if k == 10 { // 这里是你需要的字段索引
+				val := file.ReadAttribute(n, k)
+				decodedVal, err := decodeGBK(val)
+				if err != nil {
+					log.Printf("属性解码失败: %v", err)
+					continue
+				}
+
+				switch decodedVal {
+				case "草甸", "草原", "草丛":
+					// 将满足条件的形状写入新 shapefile
+					newShpFile.Write(p)
+
+					// 同时写入对应的属性值
+					// 写入对应的属性值
+					for i := range fields {
+						attrValue := file.ReadAttribute(n, i)
+						newShpFile.WriteAttribute(count, i, attrValue)
+					}
+
+					// fmt.Println("边界框:", p.BBox())
+					// fmt.Printf("\t%v: %v\n", f, decodedVal)
+					// fmt.Println()
+				}
+			}
+		}
+		count++
 	}
 
-	log.Println("Shapefile created successfully")
 }
