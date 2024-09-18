@@ -27,7 +27,7 @@ if gdf_geojson.crs != albers_proj:
 gdf_geojson.plot(ax=ax, edgecolor='black', facecolor='white', alpha=0.5, label='GeoJSON Data')
 
 # 读取并绘制 TIFF 数据
-tif_file = 'clipped/tif/wc2.1_5m_bio_2.tif'
+tif_file = 'clipped/tiff/AWC_CLASS_AWC_CLASS_resampled.tif'
 
 # 提取文件名作为标题
 file_name = os.path.basename(tif_file)
@@ -46,8 +46,12 @@ with rasterio.open(tif_file) as src:
     bounds = [transform * (0, 0), transform * (src.width, src.height)]
     extent = [bounds[0][0], bounds[1][0], bounds[1][1], bounds[0][1]]
     
-    # 设置绘图范围和颜色映射
+    # 获取最大值和最小值
     vmin, vmax = np.nanmin(data), np.nanmax(data)
+    print(f"TIFF 文件 {tif_file} 的最小值: {vmin}")
+    print(f"TIFF 文件 {tif_file} 的最大值: {vmax}")
+    
+    # 设置颜色映射
     cmap = plt.get_cmap('viridis')
     
     # 绘制栅格数据
@@ -73,7 +77,7 @@ gridlines.top_labels = False
 gridlines.right_labels = False
 
 # 保存图形到文件
-output_file_path = 'pic/tiff_geojson_overlay_cartopy_with_legend.png'
+output_file_path = f'pic/tiff_geojson_overlay_cartopy{title}.png'
 plt.savefig(output_file_path, dpi=300, bbox_inches='tight')
 
 # 显示图形
