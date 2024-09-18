@@ -31,7 +31,7 @@ for tif_file in tiff_files:
         if raster_crs != vector_data.crs:
             # 重新投影矢量数据到栅格数据的投影
             vector_data = vector_data.to_crs(raster_crs)
-
+        print(vector_data.geometry)
         # 使用矢量数据的几何裁剪栅格数据
         out_image, out_transform = mask(src, vector_data.geometry, crop=True)
         out_meta = src.meta.copy()
