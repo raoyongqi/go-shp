@@ -1,10 +1,16 @@
-import geopandas as gpd
-from pyproj import Transformer
+import dbfread
+import dbf
 
-# 读取Shapefile
-shp_file_path = 'shp/new/filtered.shp'
-gdf_projected = gpd.read_file(shp_file_path)
-# 统计多边形数量
-polygon_count = len(gdf_projected)
+# 定义输入输出文件路径
+input_dbf = 'shp/new/filtered.dbf'
+output_dbf = 'output_utf8.dbf'
 
-print(f"Total number of polygons: {polygon_count}")
+# 读取 GBK 编码的 .dbf 文件
+table = dbfread.DBF(input_dbf, encoding='Windows-1252')  # or 
+
+# 输出表头信息
+print(f"Field names: {table.fields}")
+
+# 遍历并展示每条记录
+for record in table.records:
+    print(record.rstrip())

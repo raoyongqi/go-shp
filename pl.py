@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
-
+import pandas as pd
 # 读取 GeoJSON 数据
 geojson_file_path = '中华人民共和国.json'
 gdf_geojson = gpd.read_file(geojson_file_path)
@@ -11,7 +11,11 @@ gdf_geojson = gpd.read_file(geojson_file_path)
 # 读取 Shapefile 数据
 shp_file_path = 'shp/new/filtered.shp'
 gdf_shp = gpd.read_file(shp_file_path)
-
+# 设置 Pandas 显示选项
+pd.set_option('display.max_columns', None)  # 显示所有列
+# pd.set_option('display.expand_frame_repr', False)  # 不换行显示
+pd.set_option('display.max_colwidth', None)  # 显示完整列宽
+print(gdf_shp)
 # 定义 Albers 投影坐标系
 albers_proj = ccrs.AlbersEqualArea(
     central_longitude=105,

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"strings"
@@ -11,7 +12,7 @@ import (
 )
 
 func decodeGBK(s string) (string, error) {
-	// Use io.ReadAll instead of ioutil.ReadAll
+	// 使用 io.ReadAll 而不是 ioutil.ReadAll
 	reader := transform.NewReader(strings.NewReader(s), simplifiedchinese.GBK.NewDecoder())
 	decoded, err := io.ReadAll(reader)
 	if err != nil {
@@ -22,7 +23,7 @@ func decodeGBK(s string) (string, error) {
 
 func main() {
 	// 打开 shapefile 文件
-	file, err := shp.Open("C:/Users/r/Desktop/china/shp/vegetation_china.shp")
+	file, err := shp.Open("C:/Users/r/Desktop/go-shp/shp/vegetation_china.shp")
 	if err != nil {
 		log.Fatalf("打开文件时出错: %v", err)
 	}
@@ -30,7 +31,21 @@ func main() {
 
 	// 获取所有字段
 	fields := file.Fields()
+	// 输出字段名称和类型
+	// 输出字段名称和类型
+	for _, field := range fields {
+		// Convert [11]byte to string
+		gbkStr := string(field.Name[:]) // Convert to string
 
+		// Decode field name
+		decodedName, err := decodeGBK(gbkStr)
+		if err != nil {
+			log.Printf("Error decoding field name %s: %v", gbkStr, err)
+			continue
+		}
+		fmt.Printf("Field Name: %s, Type:\n", decodedName)
+	}
+	// 创建新的 Shapefile
 	newShpFile, err := shp.Create("shp/new/filtered.shp", shp.POLYGON) // 假设是多边形
 	if err != nil {
 		log.Fatal(err)
@@ -39,45 +54,43 @@ func main() {
 
 	// 创建对应的 DBF 文件，定义字段结构
 	newShpFile.SetFields(fields)
-	// 遍历每一个记录
 
 	// 增加计数器
 	count := 0
 
+	// 遍历每一个记录
 	for file.Next() {
 		n, shape := file.Shape()
 
 		// 假设你要处理的形状是多边形
 		p := shape.(*shp.Polygon)
 
+		// 获取属性字段值
+		attributeMap := make(map[int]interface{})
 		for k := range fields {
-			if k == 10 { // 这里是你需要的字段索引
-				val := file.ReadAttribute(n, k)
-				decodedVal, err := decodeGBK(val)
-				if err != nil {
-					log.Printf("属性解码失败: %v", err)
-					continue
-				}
-
-				switch decodedVal {
-				case "草甸", "草原", "草丛":
-					// 将满足条件的形状写入新 shapefile
-					newShpFile.Write(p)
-
-					// 同时写入对应的属性值
-					// 写入对应的属性值
-					for i := range fields {
-						attrValue := file.ReadAttribute(n, i)
-						newShpFile.WriteAttribute(count, i, attrValue)
-					}
-
-					// fmt.Println("边界框:", p.BBox())
-					// fmt.Printf("\t%v: %v\n", f, decodedVal)
-					// fmt.Println()
-				}
-			}
+			val := file.ReadAttribute(n, k)
+			attributeMap[k] = val // 保存所有字段的值
 		}
-		count++
-	}
 
+		// 解码特定字段并判断条件
+		decodedVal, err := decodeGBK(attributeMap[10].(string)) // 假设第10个字段需要解码
+		if err != nil {
+			log.Printf("属性解码失败: %v", err)
+			continue
+		}
+
+		if decodedVal == "草甸" || decodedVal == "草原" || decodedVal == "草丛" {
+			// 将满足条件的形状写入新 shapefile
+			newShpFile.Write(p)
+
+			// 同时写入对应的属性值
+			for i := range fields {
+				attrValue := attributeMap[i]
+				newShpFile.WriteAttribute(count, i, attrValue)
+			}
+
+			// 增加计数器
+			count++
+		}
+	}
 }
